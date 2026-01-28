@@ -61,28 +61,36 @@ class _RssFeedPageState extends State<RssFeedPage> {
 
   Future<void> _openLink(String url) async {
     if (url.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No link available')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No link available')));
       return;
     }
-    
+
+    // Ensure the URL starts with http or https
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid URL format')));
+      return;
+    }
+
     try {
       final Uri uri = Uri.parse(url);
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not launch URL')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Could not launch URL')));
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -104,26 +112,21 @@ class _RssFeedPageState extends State<RssFeedPage> {
         for (var item in itemElements) {
           final title =
               item.findElements('title').firstOrNull?.innerText ?? 'No title';
-          
+
           // For description, try 'description', 'summary', or 'content'
-          var description = item
-                  .findElements('description')
-                  .firstOrNull
-                  ?.innerText ?? '';
+          var description =
+              item.findElements('description').firstOrNull?.innerText ?? '';
           if (description.isEmpty) {
-            description = item
-                    .findElements('summary')
-                    .firstOrNull
-                    ?.innerText ?? '';
+            description =
+                item.findElements('summary').firstOrNull?.innerText ?? '';
           }
           if (description.isEmpty) {
-            description = item
-                    .findElements('content')
-                    .firstOrNull
-                    ?.innerText ?? 'No description';
+            description =
+                item.findElements('content').firstOrNull?.innerText ??
+                'No description';
           }
           description = description.replaceAll(RegExp(r'<[^>]*>'), '');
-          
+
           // For link, handle both RSS and Atom formats
           var link = item.findElements('link').firstOrNull?.innerText ?? '';
           if (link.isEmpty) {
@@ -133,22 +136,26 @@ class _RssFeedPageState extends State<RssFeedPage> {
               link = linkElement.getAttribute('href') ?? '';
             }
           }
-          
+
           // For date, try 'pubDate', 'published', or 'updated'
-          var pubDate = item.findElements('pubDate').firstOrNull?.innerText ?? '';
+          var pubDate =
+              item.findElements('pubDate').firstOrNull?.innerText ?? '';
           if (pubDate.isEmpty) {
-            pubDate = item.findElements('published').firstOrNull?.innerText ?? '';
+            pubDate =
+                item.findElements('published').firstOrNull?.innerText ?? '';
           }
           if (pubDate.isEmpty) {
             pubDate = item.findElements('updated').firstOrNull?.innerText ?? '';
           }
 
-          items.add(RssFeedItem(
-            title: title,
-            description: description,
-            link: link,
-            pubDate: pubDate,
-          ));
+          items.add(
+            RssFeedItem(
+              title: title,
+              description: description,
+              link: link,
+              pubDate: pubDate,
+            ),
+          );
         }
 
         return items;
@@ -163,17 +170,12 @@ class _RssFeedPageState extends State<RssFeedPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('RSS Feed Reader'),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('RSS Feed Reader'), elevation: 0),
       body: FutureBuilder<List<RssFeedItem>>(
         future: futureItems,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
             return Center(
               child: Padding(
@@ -197,9 +199,7 @@ class _RssFeedPageState extends State<RssFeedPage> {
               ),
             );
           } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(
-              child: Text('No items found'),
-            );
+            return const Center(child: Text('No items found'));
           } else {
             final items = snapshot.data!;
             return ListView.builder(
@@ -209,8 +209,10 @@ class _RssFeedPageState extends State<RssFeedPage> {
                 return GestureDetector(
                   onTap: () => _openLink(item.link),
                   child: Card(
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.all(12),
                       title: Text(
