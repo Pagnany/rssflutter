@@ -167,10 +167,22 @@ class _RssFeedPageState extends State<RssFeedPage> {
     }
   }
 
+  void _refreshData() {
+    setState(() {
+      futureItems = fetchRssFeed();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('RSS Feed Reader'), elevation: 0),
+      appBar: AppBar(
+        title: const Text('RSS Feed Reader'),
+        elevation: 0,
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _refreshData),
+        ],
+      ),
       body: FutureBuilder<List<RssFeedItem>>(
         future: futureItems,
         builder: (context, snapshot) {
