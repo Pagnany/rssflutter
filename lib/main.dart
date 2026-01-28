@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:html/parser.dart' as html_parser;
+import 'package:intl/intl.dart';
 
 void main() {
   runApp(const MyApp());
@@ -40,6 +41,8 @@ class RssFeedItem {
   final String link;
   final String pubDate;
   final List<String> imageUrls;
+  final DateTime? publishedAt;
+  final String feedTitle;
 
   RssFeedItem({
     required this.title,
@@ -47,13 +50,17 @@ class RssFeedItem {
     required this.link,
     required this.pubDate,
     this.imageUrls = const [],
+    this.publishedAt,
+    required this.feedTitle,
   });
 }
 
 class _RssFeedPageState extends State<RssFeedPage> {
-  // Hardcoded RSS URL - you can change this to any valid RSS feed
-  final String rssUrl = 'https://www.tagesschau.de/index~rss2.xml';
-  // final String rssUrl = 'https://www.heise.de/rss/heise-atom.xml';
+  // Add as many RSS/Atom URLs as you like
+  final List<String> rssUrls = [
+    'https://www.tagesschau.de/index~rss2.xml',
+    'https://www.heise.de/rss/heise-atom.xml',
+  ];
   late Future<List<RssFeedItem>> futureItems;
 
   @override
@@ -99,97 +106,172 @@ class _RssFeedPageState extends State<RssFeedPage> {
   }
 
   Future<List<RssFeedItem>> fetchRssFeed() async {
-    try {
-      final response = await http.get(Uri.parse(rssUrl));
+    final allItems = <RssFeedItem>[];
 
-      if (response.statusCode == 200) {
-        final document = xml.XmlDocument.parse(response.body);
-        final items = <RssFeedItem>[];
-
-        // Parse RSS items (RSS uses 'item', Atom uses 'entry')
-        var itemElements = document.findAllElements('item');
-        if (itemElements.isEmpty) {
-          itemElements = document.findAllElements('entry');
-        }
-
-        for (var item in itemElements) {
-          final title =
-              item.findElements('title').firstOrNull?.innerText ?? 'No title';
-
-          // For description, try 'description', 'summary', or 'content'
-          var descriptionHtml =
-              item.findElements('description').firstOrNull?.innerText ?? '';
-          if (descriptionHtml.isEmpty) {
-            descriptionHtml =
-                item.findElements('summary').firstOrNull?.innerText ?? '';
-          }
-          if (descriptionHtml.isEmpty) {
-            descriptionHtml =
-                item.findElements('content').firstOrNull?.innerText ??
-                'No description';
-          }
-          
-          // Extract image URLs from HTML - check both 'content' and 'content:encoded'
-          final imageUrls = <String>[];
-          var contentHtml =
-              item.findElements('content').firstOrNull?.innerText ?? '';
-          if (contentHtml.isEmpty) {
-            contentHtml =
-                item.findElements('content:encoded').firstOrNull?.innerText ?? '';
-          }
-          if (contentHtml.contains('<img')) {
-            final htmlDoc = html_parser.parse(contentHtml);
-            final imgElements = htmlDoc.querySelectorAll('img');
-            for (var img in imgElements) {
-              final src = img.attributes['src'];
-              if (src != null && src.isNotEmpty) {
-                imageUrls.add(src);
-              }
-            }
-          }
-          
-          // Strip HTML tags for text description
-          final description = descriptionHtml.replaceAll(RegExp(r'<[^>]*>'), '');
-
-          // For link, handle both RSS and Atom formats
-          var link = item.findElements('link').firstOrNull?.innerText ?? '';
-          if (link.isEmpty) {
-            // Atom feeds may have link as an attribute
-            final linkElement = item.findElements('link').firstOrNull;
-            if (linkElement != null) {
-              link = linkElement.getAttribute('href') ?? '';
-            }
-          }
-
-          // For date, try 'pubDate', 'published', or 'updated'
-          var pubDate =
-              item.findElements('pubDate').firstOrNull?.innerText ?? '';
-          if (pubDate.isEmpty) {
-            pubDate =
-                item.findElements('published').firstOrNull?.innerText ?? '';
-          }
-          if (pubDate.isEmpty) {
-            pubDate = item.findElements('updated').firstOrNull?.innerText ?? '';
-          }
-
-          items.add(
-            RssFeedItem(
-              title: title,
-              description: description,
-              link: link,
-              pubDate: pubDate,
-              imageUrls: imageUrls,
-            ),
-          );
-        }
-
-        return items;
-      } else {
-        throw Exception('Failed to load RSS feed');
+    for (final url in rssUrls) {
+      try {
+        final feedItems = await _fetchSingleFeed(url);
+        allItems.addAll(feedItems);
+      } catch (e) {
+        debugPrint('Failed to load $url: $e');
       }
-    } catch (e) {
-      throw Exception('Error fetching RSS feed: $e');
     }
+
+    allItems.sort((a, b) {
+      final aDate =
+          a.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+      final bDate =
+          b.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+      return bDate.compareTo(aDate);
+    });
+
+    return allItems;
+  }
+
+  Future<List<RssFeedItem>> _fetchSingleFeed(String url) async {
+    final response = await http.get(Uri.parse(url));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load RSS feed');
+    }
+
+    final document = xml.XmlDocument.parse(response.body);
+    final items = <RssFeedItem>[];
+    final feedTitle = _extractFeedTitle(document, url);
+
+    // Parse RSS items (RSS uses 'item', Atom uses 'entry')
+    var itemElements = document.findAllElements('item');
+    if (itemElements.isEmpty) {
+      itemElements = document.findAllElements('entry');
+    }
+
+    for (var item in itemElements) {
+      final title =
+          item.findElements('title').firstOrNull?.innerText ?? 'No title';
+
+      // For description, try 'description', 'summary', or 'content'
+      var descriptionHtml =
+          item.findElements('description').firstOrNull?.innerText ?? '';
+      if (descriptionHtml.isEmpty) {
+        descriptionHtml =
+            item.findElements('summary').firstOrNull?.innerText ?? '';
+      }
+      if (descriptionHtml.isEmpty) {
+        descriptionHtml =
+            item.findElements('content').firstOrNull?.innerText ??
+            'No description';
+      }
+
+      // Extract image URLs from HTML - check both 'content' and 'content:encoded'
+      final imageUrls = <String>[];
+      var contentHtml =
+          item.findElements('content').firstOrNull?.innerText ?? '';
+      if (contentHtml.isEmpty) {
+        contentHtml =
+            item.findElements('content:encoded').firstOrNull?.innerText ?? '';
+      }
+      if (contentHtml.contains('<img')) {
+        final htmlDoc = html_parser.parse(contentHtml);
+        final imgElements = htmlDoc.querySelectorAll('img');
+        for (var img in imgElements) {
+          final src = img.attributes['src'];
+          if (src != null && src.isNotEmpty) {
+            imageUrls.add(src);
+          }
+        }
+      }
+
+      // Strip HTML tags for text description
+      final description = descriptionHtml.replaceAll(RegExp(r'<[^>]*>'), '');
+
+      // For link, handle both RSS and Atom formats
+      var link = item.findElements('link').firstOrNull?.innerText ?? '';
+      if (link.isEmpty) {
+        // Atom feeds may have link as an attribute
+        final linkElement = item.findElements('link').firstOrNull;
+        if (linkElement != null) {
+          link = linkElement.getAttribute('href') ?? '';
+        }
+      }
+
+      // For date, try 'pubDate', 'published', or 'updated'
+      var pubDate =
+          item.findElements('pubDate').firstOrNull?.innerText ?? '';
+      if (pubDate.isEmpty) {
+        pubDate = item.findElements('published').firstOrNull?.innerText ?? '';
+      }
+      if (pubDate.isEmpty) {
+        pubDate = item.findElements('updated').firstOrNull?.innerText ?? '';
+      }
+
+      final publishedAt = _parsePubDate(pubDate);
+
+      items.add(
+        RssFeedItem(
+          title: title,
+          description: description,
+          link: link,
+          pubDate: pubDate,
+          imageUrls: imageUrls,
+          publishedAt: publishedAt,
+          feedTitle: feedTitle,
+        ),
+      );
+    }
+
+    return items;
+  }
+
+  String _extractFeedTitle(xml.XmlDocument document, String url) {
+    final channelTitle = document
+        .findAllElements('channel')
+        .firstOrNull
+        ?.findElements('title')
+        .firstOrNull
+        ?.innerText
+        .trim();
+    if (channelTitle != null && channelTitle.isNotEmpty) {
+      return channelTitle;
+    }
+
+    final feedTitle = document
+        .findAllElements('feed')
+        .firstOrNull
+        ?.findElements('title')
+        .firstOrNull
+        ?.innerText
+        .trim();
+    if (feedTitle != null && feedTitle.isNotEmpty) {
+      return feedTitle;
+    }
+
+    final host = Uri.tryParse(url)?.host ?? url;
+    return host.isEmpty ? 'Unknown source' : host;
+  }
+
+  DateTime? _parsePubDate(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+
+    final iso = DateTime.tryParse(trimmed);
+    if (iso != null) return iso.toUtc();
+
+    final formats = [
+      DateFormat('EEE, dd MMM yyyy HH:mm:ss Z', 'en_US'),
+      DateFormat('EEE, dd MMM yyyy HH:mm Z', 'en_US'),
+      DateFormat('dd MMM yyyy HH:mm:ss Z', 'en_US'),
+      DateFormat('dd MMM yyyy HH:mm Z', 'en_US'),
+    ];
+
+    for (final format in formats) {
+      try {
+        return format.parseUtc(trimmed);
+      } catch (_) {
+        // try next format
+      }
+    }
+
+    return null;
   }
 
   void _refreshData() {
@@ -308,6 +390,14 @@ class _RssFeedPageState extends State<RssFeedPage> {
                             style: const TextStyle(
                               fontSize: 12,
                               color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            item.feedTitle,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.blueGrey,
                             ),
                           ),
                         ],
