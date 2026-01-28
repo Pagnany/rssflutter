@@ -49,8 +49,8 @@ class RssFeedItem {
 
 class _RssFeedPageState extends State<RssFeedPage> {
   // Hardcoded RSS URL - you can change this to any valid RSS feed
-  // final String rssUrl = 'https://www.tagesschau.de/index~rss2.xml';
-  final String rssUrl = 'https://www.heise.de/rss/heise-atom.xml';
+  final String rssUrl = 'https://www.tagesschau.de/index~rss2.xml';
+  //final String rssUrl = 'https://www.heise.de/rss/heise-atom.xml';
   late Future<List<RssFeedItem>> futureItems;
 
   @override
@@ -217,9 +217,10 @@ class _RssFeedPageState extends State<RssFeedPage> {
                       contentPadding: const EdgeInsets.all(12),
                       title: Text(
                         item.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,9 +228,10 @@ class _RssFeedPageState extends State<RssFeedPage> {
                           const SizedBox(height: 8),
                           Text(
                             item.description,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.grey),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              color: Color.fromARGB(184, 255, 255, 255),
+                            ),
                           ),
                           const SizedBox(height: 8),
                           Text(
