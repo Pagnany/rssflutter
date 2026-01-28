@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:html/parser.dart' as html_parser;
 
 void main() {
   runApp(const MyApp());
@@ -38,19 +39,21 @@ class RssFeedItem {
   final String description;
   final String link;
   final String pubDate;
+  final List<String> imageUrls;
 
   RssFeedItem({
     required this.title,
     required this.description,
     required this.link,
     required this.pubDate,
+    this.imageUrls = const [],
   });
 }
 
 class _RssFeedPageState extends State<RssFeedPage> {
   // Hardcoded RSS URL - you can change this to any valid RSS feed
   final String rssUrl = 'https://www.tagesschau.de/index~rss2.xml';
-  //final String rssUrl = 'https://www.heise.de/rss/heise-atom.xml';
+  // final String rssUrl = 'https://www.heise.de/rss/heise-atom.xml';
   late Future<List<RssFeedItem>> futureItems;
 
   @override
@@ -114,18 +117,39 @@ class _RssFeedPageState extends State<RssFeedPage> {
               item.findElements('title').firstOrNull?.innerText ?? 'No title';
 
           // For description, try 'description', 'summary', or 'content'
-          var description =
+          var descriptionHtml =
               item.findElements('description').firstOrNull?.innerText ?? '';
-          if (description.isEmpty) {
-            description =
+          if (descriptionHtml.isEmpty) {
+            descriptionHtml =
                 item.findElements('summary').firstOrNull?.innerText ?? '';
           }
-          if (description.isEmpty) {
-            description =
+          if (descriptionHtml.isEmpty) {
+            descriptionHtml =
                 item.findElements('content').firstOrNull?.innerText ??
                 'No description';
           }
-          description = description.replaceAll(RegExp(r'<[^>]*>'), '');
+          
+          // Extract image URLs from HTML - check both 'content' and 'content:encoded'
+          final imageUrls = <String>[];
+          var contentHtml =
+              item.findElements('content').firstOrNull?.innerText ?? '';
+          if (contentHtml.isEmpty) {
+            contentHtml =
+                item.findElements('content:encoded').firstOrNull?.innerText ?? '';
+          }
+          if (contentHtml.contains('<img')) {
+            final htmlDoc = html_parser.parse(contentHtml);
+            final imgElements = htmlDoc.querySelectorAll('img');
+            for (var img in imgElements) {
+              final src = img.attributes['src'];
+              if (src != null && src.isNotEmpty) {
+                imageUrls.add(src);
+              }
+            }
+          }
+          
+          // Strip HTML tags for text description
+          final description = descriptionHtml.replaceAll(RegExp(r'<[^>]*>'), '');
 
           // For link, handle both RSS and Atom formats
           var link = item.findElements('link').firstOrNull?.innerText ?? '';
@@ -154,6 +178,7 @@ class _RssFeedPageState extends State<RssFeedPage> {
               description: description,
               link: link,
               pubDate: pubDate,
+              imageUrls: imageUrls,
             ),
           );
         }
@@ -225,18 +250,50 @@ class _RssFeedPageState extends State<RssFeedPage> {
                       horizontal: 8,
                       vertical: 4,
                     ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.all(12),
-                      title: Text(
-                        item.title,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      subtitle: Column(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (item.imageUrls.isNotEmpty)
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                maxHeight: 200,
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  item.imageUrls.first,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return const SizedBox.shrink();
+                                  },
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Container(
+                                      height: 200,
+                                      color: Colors.grey[800],
+                                      child: Center(
+                                        child: CircularProgressIndicator(
+                                          value: loadingProgress.expectedTotalBytes != null
+                                              ? loadingProgress.cumulativeBytesLoaded /
+                                                  loadingProgress.expectedTotalBytes!
+                                              : null,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          if (item.imageUrls.isNotEmpty) const SizedBox(height: 8),
+                          Text(
+                            item.title,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           const SizedBox(height: 8),
                           Text(
                             item.description,
@@ -253,10 +310,8 @@ class _RssFeedPageState extends State<RssFeedPage> {
                               color: Colors.grey,
                             ),
                           ),
-                          const SizedBox(height: 8),
                         ],
                       ),
-                      isThreeLine: false,
                     ),
                   ),
                 );
