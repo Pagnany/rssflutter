@@ -58,8 +58,16 @@ class RssFeedItem {
 class _RssFeedPageState extends State<RssFeedPage> {
   // Add as many RSS/Atom URLs as you like
   final List<String> rssUrls = [
-    'https://www.tagesschau.de/index~rss2.xml',
+    'https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml',
     'https://www.heise.de/rss/heise-atom.xml',
+    'https://rss.golem.de/rss.php?feed=RSS2.0',
+    'https://www.pcgameshardware.de/feed.cfm?menu_alias=home/,',
+    'https://www.animenewsnetwork.com/all/rss.xml?ann-edition=w',
+    'https://hnrss.org/frontpage',
+    'https://www.sciencedaily.com/rss/all.xml',
+    'https://www.gamestar.de/news/rss/news.rss',
+    'https://archlinux.org/feeds/news/',
+    'https://www.formel1.de/rss/news/feed.xml',
   ];
   late Future<List<RssFeedItem>> futureItems;
 
@@ -170,6 +178,10 @@ class _RssFeedPageState extends State<RssFeedPage> {
         contentHtml =
             item.findElements('content:encoded').firstOrNull?.innerText ?? '';
       }
+      if (contentHtml.isEmpty) {
+        contentHtml =
+            item.findElements('description').firstOrNull?.innerText ?? '';
+      }
       if (contentHtml.contains('<img')) {
         final htmlDoc = html_parser.parse(contentHtml);
         final imgElements = htmlDoc.querySelectorAll('img');
@@ -195,8 +207,7 @@ class _RssFeedPageState extends State<RssFeedPage> {
       }
 
       // For date, try 'pubDate', 'published', or 'updated'
-      var pubDate =
-          item.findElements('pubDate').firstOrNull?.innerText ?? '';
+      var pubDate = item.findElements('pubDate').firstOrNull?.innerText ?? '';
       if (pubDate.isEmpty) {
         pubDate = item.findElements('published').firstOrNull?.innerText ?? '';
       }
@@ -339,9 +350,7 @@ class _RssFeedPageState extends State<RssFeedPage> {
                         children: [
                           if (item.imageUrls.isNotEmpty)
                             ConstrainedBox(
-                              constraints: const BoxConstraints(
-                                maxHeight: 200,
-                              ),
+                              constraints: const BoxConstraints(maxHeight: 200),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: Image.network(
@@ -350,25 +359,33 @@ class _RssFeedPageState extends State<RssFeedPage> {
                                   errorBuilder: (context, error, stackTrace) {
                                     return const SizedBox.shrink();
                                   },
-                                  loadingBuilder: (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Container(
-                                      height: 200,
-                                      color: Colors.grey[800],
-                                      child: Center(
-                                        child: CircularProgressIndicator(
-                                          value: loadingProgress.expectedTotalBytes != null
-                                              ? loadingProgress.cumulativeBytesLoaded /
-                                                  loadingProgress.expectedTotalBytes!
-                                              : null,
-                                        ),
-                                      ),
-                                    );
-                                  },
+                                  loadingBuilder:
+                                      (context, child, loadingProgress) {
+                                        if (loadingProgress == null)
+                                          return child;
+                                        return Container(
+                                          height: 200,
+                                          color: Colors.grey[800],
+                                          child: Center(
+                                            child: CircularProgressIndicator(
+                                              value:
+                                                  loadingProgress
+                                                          .expectedTotalBytes !=
+                                                      null
+                                                  ? loadingProgress
+                                                            .cumulativeBytesLoaded /
+                                                        loadingProgress
+                                                            .expectedTotalBytes!
+                                                  : null,
+                                            ),
+                                          ),
+                                        );
+                                      },
                                 ),
                               ),
                             ),
-                          if (item.imageUrls.isNotEmpty) const SizedBox(height: 8),
+                          if (item.imageUrls.isNotEmpty)
+                            const SizedBox(height: 8),
                           Text(
                             item.title,
                             style: const TextStyle(
