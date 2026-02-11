@@ -59,7 +59,7 @@ class _RssFeedPageState extends State<RssFeedPage> {
   // Add as many RSS/Atom URLs as you like
   final List<String> rssUrls = [
     'https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml',
-    'https://www.heise.de/rss/heise-atom.xml',
+    'https://www.heise.de/rss/heise.rdf',
     'https://rss.golem.de/rss.php?feed=RSS2.0',
     'https://www.pcgameshardware.de/feed.cfm?menu_alias=home/,',
     'https://www.animenewsnetwork.com/all/rss.xml?ann-edition=w',
@@ -137,7 +137,12 @@ class _RssFeedPageState extends State<RssFeedPage> {
   }
 
   Future<List<RssFeedItem>> _fetchSingleFeed(String url) async {
-    final response = await http.get(Uri.parse(url));
+    // Use proxy to avoid CORS issues
+    const proxyUrl = 'https://pagnany.de/api/url_proxy.php?url=';
+    final encodedUrl = Uri.encodeComponent(url);
+    final proxiedUrl = '$proxyUrl$encodedUrl';
+
+    final response = await http.get(Uri.parse(proxiedUrl));
 
     if (response.statusCode != 200) {
       throw Exception('Failed to load RSS feed');
