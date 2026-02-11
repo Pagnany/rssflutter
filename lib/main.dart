@@ -50,6 +50,7 @@ class RssFeedItem {
   final List<String> imageUrls;
   final DateTime? publishedAt;
   final String feedTitle;
+  final bool useProxy;
 
   RssFeedItem({
     required this.title,
@@ -59,6 +60,7 @@ class RssFeedItem {
     this.imageUrls = const [],
     this.publishedAt,
     required this.feedTitle,
+    this.useProxy = true,
   });
 }
 
@@ -168,6 +170,15 @@ class _RssFeedPageState extends State<RssFeedPage> {
     return allItems;
   }
 
+  String _getProxiedImageUrl(String imageUrl, bool useProxy) {
+    if (!useProxy || !imageUrl.startsWith('http')) {
+      return imageUrl;
+    }
+    const proxyUrl = 'https://pagnany.de/api/image_proxy.php?url=';
+    final encodedUrl = Uri.encodeComponent(imageUrl);
+    return '$proxyUrl$encodedUrl';
+  }
+
   Future<List<RssFeedItem>> _fetchSingleFeed(String url, bool useProxy) async {
     final String finalUrl;
     if (useProxy) {
@@ -268,6 +279,7 @@ class _RssFeedPageState extends State<RssFeedPage> {
           imageUrls: imageUrls,
           publishedAt: publishedAt,
           feedTitle: feedTitle,
+          useProxy: useProxy,
         ),
       );
     }
@@ -396,7 +408,10 @@ class _RssFeedPageState extends State<RssFeedPage> {
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: Image.network(
-                                  item.imageUrls.first,
+                                  _getProxiedImageUrl(
+                                    item.imageUrls.first,
+                                    item.useProxy,
+                                  ),
                                   fit: BoxFit.contain,
                                   errorBuilder: (context, error, stackTrace) {
                                     return const SizedBox.shrink();
