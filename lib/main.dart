@@ -35,6 +35,13 @@ class RssFeedPage extends StatefulWidget {
   State<RssFeedPage> createState() => _RssFeedPageState();
 }
 
+class RssFeedSource {
+  final String url;
+  final bool useProxy;
+
+  RssFeedSource({required this.url, this.useProxy = true});
+}
+
 class RssFeedItem {
   final String title;
   final String description;
@@ -57,17 +64,39 @@ class RssFeedItem {
 
 class _RssFeedPageState extends State<RssFeedPage> {
   // Add as many RSS/Atom URLs as you like
-  final List<String> rssUrls = [
-    'https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml',
-    'https://www.heise.de/rss/heise.rdf',
-    'https://rss.golem.de/rss.php?feed=RSS2.0',
-    'https://www.pcgameshardware.de/feed.cfm?menu_alias=home/,',
-    'https://www.animenewsnetwork.com/all/rss.xml?ann-edition=w',
-    'https://hnrss.org/frontpage',
-    'https://www.sciencedaily.com/rss/all.xml',
-    'https://www.gamestar.de/news/rss/news.rss',
-    'https://archlinux.org/feeds/news/',
-    'https://www.formel1.de/rss/news/feed.xml',
+  // Set useProxy: false for feeds that don't need proxy/have CORS enabled
+  final List<RssFeedSource> rssFeeds = [
+    RssFeedSource(
+      url: 'https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml',
+      useProxy: false,
+    ),
+    RssFeedSource(url: 'https://www.heise.de/rss/heise.rdf', useProxy: false),
+    RssFeedSource(
+      url: 'https://rss.golem.de/rss.php?feed=RSS2.0',
+      useProxy: true,
+    ),
+    RssFeedSource(
+      url: 'https://www.pcgameshardware.de/feed.cfm?menu_alias=home/,',
+      useProxy: true,
+    ),
+    RssFeedSource(
+      url: 'https://www.animenewsnetwork.com/all/rss.xml?ann-edition=w',
+      useProxy: true,
+    ),
+    RssFeedSource(url: 'https://hnrss.org/frontpage', useProxy: true),
+    RssFeedSource(
+      url: 'https://www.sciencedaily.com/rss/all.xml',
+      useProxy: true,
+    ),
+    RssFeedSource(
+      url: 'https://www.gamestar.de/news/rss/news.rss',
+      useProxy: true,
+    ),
+    RssFeedSource(url: 'https://archlinux.org/feeds/news/', useProxy: true),
+    RssFeedSource(
+      url: 'https://www.formel1.de/rss/news/feed.xml',
+      useProxy: true,
+    ),
   ];
   late Future<List<RssFeedItem>> futureItems;
 
@@ -116,12 +145,15 @@ class _RssFeedPageState extends State<RssFeedPage> {
   Future<List<RssFeedItem>> fetchRssFeed() async {
     final allItems = <RssFeedItem>[];
 
-    for (final url in rssUrls) {
+    for (final feedSource in rssFeeds) {
       try {
-        final feedItems = await _fetchSingleFeed(url);
+        final feedItems = await _fetchSingleFeed(
+          feedSource.url,
+          feedSource.useProxy,
+        );
         allItems.addAll(feedItems);
       } catch (e) {
-        debugPrint('Failed to load $url: $e');
+        debugPrint('Failed to load ${feedSource.url}: $e');
       }
     }
 
@@ -136,13 +168,18 @@ class _RssFeedPageState extends State<RssFeedPage> {
     return allItems;
   }
 
-  Future<List<RssFeedItem>> _fetchSingleFeed(String url) async {
-    // Use proxy to avoid CORS issues
-    const proxyUrl = 'https://pagnany.de/api/url_proxy.php?url=';
-    final encodedUrl = Uri.encodeComponent(url);
-    final proxiedUrl = '$proxyUrl$encodedUrl';
+  Future<List<RssFeedItem>> _fetchSingleFeed(String url, bool useProxy) async {
+    final String finalUrl;
+    if (useProxy) {
+      // Use proxy to avoid CORS issues
+      const proxyUrl = 'https://pagnany.de/api/url_proxy.php?url=';
+      final encodedUrl = Uri.encodeComponent(url);
+      finalUrl = '$proxyUrl$encodedUrl';
+    } else {
+      finalUrl = url;
+    }
 
-    final response = await http.get(Uri.parse(proxiedUrl));
+    final response = await http.get(Uri.parse(finalUrl));
 
     if (response.statusCode != 200) {
       throw Exception('Failed to load RSS feed');
